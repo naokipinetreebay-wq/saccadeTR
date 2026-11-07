@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { SessionExit } from "@/components/SessionExit";
 import { placementsFor } from "@/lib/placement";
+import { displayJoinUrl } from "@/lib/roomCode";
 import {
   MAX_CENTER,
   MAX_GAP,
@@ -32,7 +33,7 @@ export function ControllerPanel({
   const cfg = snapshot.config;
   const displayUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/d/?code=${snapshot.code}`;
+    return displayJoinUrl(snapshot.code);
   }, [snapshot.code]);
   const [, setTick] = useState(0);
   useEffect(() => {

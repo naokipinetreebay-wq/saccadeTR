@@ -7,4 +7,10 @@
 - 通常は真ん中 3 秒・端 5 秒。早めは真ん中 2 秒・端 3.5 秒
 - コントローラを含めて 3〜7 台。配置は周辺視タップと同じ
 
-ローカル確認: `npm install` のあと `npm test`、`npm run dev`。公開はまだしない。
+ローカル確認: `npm install` のあと `npm test`、`npm run dev`。
+
+## 公開 URL
+
+https://tr.rojiura.app/saccade/  
+ルーム／WS: https://tr-api.rojiura.app  
+旧ホスト `https://saccade.rojiura.app` は新 URL へ 301 します。

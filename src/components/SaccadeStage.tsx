@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { CSS_PX_PER_CM, DOT_DIAMETER_CM, centerPoint, peripheralPoint } from "@/lib/motion";
 import { placementsFor } from "@/lib/placement";
+import { resolveSaccadeView } from "@/lib/playView";
 import type { RoomSnapshot } from "@/lib/types";
 
 function useWakeLock() {
@@ -59,33 +60,34 @@ export function SaccadeStage({
       const box = boxRef.current;
       const dot = dotRef.current;
       const snap = snapRef.current;
-      if (!box || !dot || !snap.config.running || !snap.phase || snap.phaseStartedAt == null) {
+      const now = Date.now() + skewRef.current;
+      const view = resolveSaccadeView(snap, now);
+      if (!box || !dot || !snap.config.running || !view.phase || view.phaseStartedAt == null) {
         if (dot) dot.style.opacity = "0";
         raf = requestAnimationFrame(tick);
         return;
       }
-      const now = Date.now() + skewRef.current;
       if (snap.endsAt != null && now >= snap.endsAt) {
         dot.style.opacity = "0";
         raf = requestAnimationFrame(tick);
         return;
       }
-      const duration = snap.phaseDurationMs || 1;
-      const t = (now - snap.phaseStartedAt) / duration;
+      const duration = view.phaseDurationMs || 1;
+      const t = (now - view.phaseStartedAt) / duration;
       const inset = (DOT_DIAMETER_CM / 2) * CSS_PX_PER_CM;
       const width = box.clientWidth;
       const height = box.clientHeight;
       let point: { x: number; y: number } | null = null;
-      if (snap.phase === "center" && role === "center" && t >= 0 && t <= 1) {
-        point = centerPoint(snap.fromAngle, snap.toAngle, t, width, height, inset);
+      if (view.phase === "center" && role === "center" && t >= 0 && t <= 1) {
+        point = centerPoint(view.fromAngle, view.toAngle, t, width, height, inset);
       } else if (
-        snap.phase === "peripheral" &&
+        view.phase === "peripheral" &&
         role === "display" &&
-        snap.targetId === deviceId &&
+        view.targetId === deviceId &&
         t >= 0 &&
         t <= 1
       ) {
-        point = peripheralPoint(snap.toAngle, t, width, height, inset);
+        point = peripheralPoint(view.toAngle, t, width, height, inset);
       }
       if (!point) {
         dot.style.opacity = "0";

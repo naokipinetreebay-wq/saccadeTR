@@ -24,6 +24,21 @@ export interface DisplayInfo {
   connected: boolean;
 }
 
+/** 開始時に一度配り、端末時計で再生する位相一式 */
+export interface PlayPhase {
+  phase: Phase;
+  phaseStartedAt: number;
+  phaseDurationMs: number;
+  fromAngle: number;
+  toAngle: number;
+  targetId: string | null;
+}
+
+export interface PlayPackage {
+  endsAt: number | null;
+  phases: PlayPhase[];
+}
+
 export interface RoomSnapshot {
   code: string;
   config: RoomConfig;
@@ -39,6 +54,8 @@ export interface RoomSnapshot {
   startedAt: number | null;
   endsAt: number | null;
   finishedAt: number | null;
+  /** あるときは端末側再生の正本 */
+  playPackage: PlayPackage | null;
   serverNow: number;
 }
 

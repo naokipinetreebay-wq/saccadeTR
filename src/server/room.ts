@@ -16,6 +16,8 @@ import {
   snapStep,
   type DisplayInfo,
   type Phase,
+  type PlayPackage,
+  type PlayPhase,
   type RoomConfig,
   type RoomSnapshot,
   type RunMode,
@@ -23,6 +25,7 @@ import {
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ROOM_TTL_MS = 90 * 60 * 1000;
+const ADJUST_PHASES = 48;
 
 function randomCode(length = 6): string {
   let out = "";
@@ -53,6 +56,7 @@ export class Room {
   startedAt: number | null = null;
   endsAt: number | null = null;
   finishedAt: number | null = null;
+  playPackage: PlayPackage | null = null;
   lastActivity = Date.now();
   rng: () => number = Math.random;
 
@@ -64,6 +68,7 @@ export class Room {
   private toAngle = 0;
   private targetId: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private packageIndex = 0;
 
   constructor(code: string) {
     this.code = code;
@@ -194,12 +199,17 @@ export class Room {
     this.endsAt = runMode === "train" ? now + this.config.durationSeconds * 1000 : null;
     this.finishedAt = null;
     this.bound = "out";
-    const first = pickTarget(ids, null, this.rng);
-    this.targetId = first;
-    this.toAngle = this.angleOf(first);
-    this.fromAngle = (this.toAngle + 180) % 360;
+    this.packageIndex = 0;
+    this.playPackage = this.buildPlayPackage(ids, now, this.endsAt);
     this.touch();
-    this.enterPhase("center");
+    const first = this.playPackage.phases[0];
+    if (!first) {
+      this.finish();
+      return;
+    }
+    this.applyPhase(first);
+    this.armPackage();
+    this.broadcast();
   }
 
   stop() {
@@ -209,54 +219,111 @@ export class Room {
     this.finishedAt = null;
     this.phaseStartedAt = null;
     this.targetId = null;
+    this.playPackage = null;
+    this.packageIndex = 0;
     this.touch();
     this.broadcast();
   }
 
-  private enterPhase(phase: Phase) {
-    this.phase = phase;
-    this.phaseStartedAt = Date.now();
+  private durationFor(phase: Phase): number {
     const seconds =
       phase === "center"
         ? this.config.centerSeconds
         : phase === "peripheral"
           ? this.config.peripheralSeconds
           : this.config.gapSeconds;
-    this.phaseDurationMs = Math.max(200, Math.round(seconds * 1000));
-    this.broadcast();
-    this.arm(this.phaseDurationMs);
+    return Math.max(200, Math.round(seconds * 1000));
   }
 
-  private arm(ms: number) {
+  private buildPlayPackage(ids: string[], startAt: number, endsAt: number | null): PlayPackage {
+    const phases: PlayPhase[] = [];
+    let phase: Phase = "center";
+    let bound: Bound = "out";
+    let at = startAt;
+    let targetId = pickTarget(ids, null, this.rng);
+    let toAngle = this.angleOf(targetId);
+    let fromAngle = (toAngle + 180) % 360;
+    let previous: string | null = null;
+
+    const maxPhases = endsAt != null ? 500 : ADJUST_PHASES;
+    while (phases.length < maxPhases) {
+      if (endsAt != null && at >= endsAt) break;
+      const phaseDurationMs = this.durationFor(phase);
+      phases.push({
+        phase,
+        phaseStartedAt: at,
+        phaseDurationMs,
+        fromAngle,
+        toAngle,
+        targetId: phase === "peripheral" ? targetId : phase === "center" ? targetId : null,
+      });
+      at += phaseDurationMs;
+      if (endsAt != null && at >= endsAt) break;
+      const next = nextBeat(phase, bound);
+      bound = next.bound;
+      phase = next.phase;
+      if (phase === "center") {
+        previous = targetId;
+        targetId = pickTarget(ids, previous, this.rng);
+        fromAngle = previous ? this.angleOf(previous) : toAngle;
+        toAngle = this.angleOf(targetId);
+      }
+    }
+    return { endsAt, phases };
+  }
+
+  private applyPhase(frame: PlayPhase) {
+    this.phase = frame.phase;
+    this.phaseStartedAt = frame.phaseStartedAt;
+    this.phaseDurationMs = frame.phaseDurationMs;
+    this.fromAngle = frame.fromAngle;
+    this.toAngle = frame.toAngle;
+    this.targetId = frame.targetId;
+  }
+
+  private armPackage() {
     this.clearTimer();
-    let wait = ms;
-    if (this.config.mode === "train" && this.endsAt != null) {
-      wait = Math.min(ms, Math.max(0, this.endsAt - Date.now()));
-    }
-    this.timer = setTimeout(() => this.onPhaseEnd(), wait);
-  }
-
-  private onPhaseEnd() {
-    if (!this.config.running) return;
-    if (this.config.mode === "train" && this.endsAt != null && Date.now() >= this.endsAt - 40) {
-      this.finish();
-      return;
-    }
-    const next = nextBeat(this.phase, this.bound);
-    this.bound = next.bound;
-    if (next.phase === "center") {
+    if (!this.config.running || !this.playPackage) return;
+    const nextIndex = this.packageIndex + 1;
+    if (nextIndex >= this.playPackage.phases.length) {
+      if (this.endsAt != null) {
+        const wait = Math.max(0, this.endsAt - Date.now());
+        this.timer = setTimeout(() => this.finish(), wait);
+        return;
+      }
+      const last = this.playPackage.phases[this.playPackage.phases.length - 1];
       const ids = this.liveIds();
       if (ids.length === 0) {
         this.finish();
         return;
       }
-      const previous = this.targetId;
-      const nextId = pickTarget(ids, previous, this.rng);
-      this.fromAngle = previous ? this.angleOf(previous) : this.toAngle;
-      this.targetId = nextId;
-      this.toAngle = this.angleOf(nextId);
+      const more = this.buildPlayPackage(
+        ids,
+        last.phaseStartedAt + last.phaseDurationMs,
+        null
+      );
+      const kept = this.playPackage.phases.slice(-4);
+      this.playPackage = { endsAt: null, phases: [...kept, ...more.phases] };
+      this.packageIndex = Math.max(0, kept.length - 1);
     }
-    this.enterPhase(next.phase);
+    const next = this.playPackage.phases[this.packageIndex + 1];
+    if (!next) {
+      if (this.endsAt != null) {
+        const wait = Math.max(0, this.endsAt - Date.now());
+        this.timer = setTimeout(() => this.finish(), wait);
+      }
+      return;
+    }
+    const wait = Math.max(0, next.phaseStartedAt - Date.now());
+    this.timer = setTimeout(() => {
+      if (!this.config.running || !this.playPackage) return;
+      this.packageIndex += 1;
+      const frame = this.playPackage.phases[this.packageIndex];
+      if (!frame) return;
+      this.applyPhase(frame);
+      this.armPackage();
+      this.broadcast();
+    }, wait);
   }
 
   private finish() {
@@ -266,6 +333,8 @@ export class Room {
     this.finishedAt = Date.now();
     this.phaseStartedAt = null;
     this.targetId = null;
+    this.playPackage = null;
+    this.packageIndex = 0;
     this.touch();
     this.broadcast();
   }
@@ -295,6 +364,7 @@ export class Room {
       startedAt: this.startedAt,
       endsAt: this.endsAt,
       finishedAt: this.finishedAt,
+      playPackage: this.config.running ? this.playPackage : null,
       serverNow: Date.now(),
     };
   }

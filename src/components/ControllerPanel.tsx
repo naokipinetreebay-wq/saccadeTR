@@ -1,5 +1,7 @@
 "use client";
 
+import { NumberSelect } from "@/components/NumberSelect";
+
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { SessionExit } from "@/components/SessionExit";
@@ -162,38 +164,32 @@ export function ControllerPanel({
         </div>
         <label className="field">
           <span>真ん中を通る: {cfg.centerSeconds.toFixed(1)}秒</span>
-          <input
-            type="range"
+          <NumberSelect
             min={MIN_CENTER}
             max={MAX_CENTER}
             step={0.5}
             value={cfg.centerSeconds}
-            disabled={locked}
-            onChange={(e) => patch({ centerSeconds: Number(e.target.value) })}
+            onChange={(n) => patch({ centerSeconds: n })}
           />
         </label>
         <label className="field">
           <span>端で往復: {cfg.peripheralSeconds.toFixed(1)}秒</span>
-          <input
-            type="range"
+          <NumberSelect
             min={MIN_PERIPHERAL_TRAVEL}
             max={MAX_PERIPHERAL_TRAVEL}
             step={0.5}
             value={cfg.peripheralSeconds}
-            disabled={locked}
-            onChange={(e) => patch({ peripheralSeconds: Number(e.target.value) })}
+            onChange={(n) => patch({ peripheralSeconds: n })}
           />
         </label>
         <label className="field">
           <span>消えている時間: {cfg.gapSeconds.toFixed(1)}秒</span>
-          <input
-            type="range"
+          <NumberSelect
             min={MIN_GAP}
             max={MAX_GAP}
             step={0.5}
             value={cfg.gapSeconds}
-            disabled={locked}
-            onChange={(e) => patch({ gapSeconds: Number(e.target.value) })}
+            onChange={(n) => patch({ gapSeconds: n })}
           />
         </label>
         <p className="muted">

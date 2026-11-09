@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CenterScreen } from "@/components/CenterScreen";
 import { ControllerPanel } from "@/components/ControllerPanel";
 import { SetupWizard } from "@/components/SetupWizard";
+import { useSaccadeLocalHost } from "@/lib/localHost";
 import { useRoomCode } from "@/lib/roomCode";
 import { useDeviceId, useRoomSocket } from "@/lib/ws";
 
@@ -11,6 +12,7 @@ export default function ControllerPage() {
   const code = useRoomCode();
   const deviceId = useDeviceId(`controller-${code}`);
   const { snapshot, error, connected, send } = useRoomSocket(code, "controller", deviceId);
+  const { startLocal, stopLocal } = useSaccadeLocalHost(snapshot, send);
 
   const wizardKey = `sc-wizard-done-${code}`;
   const [ready, setReady] = useState(false);
@@ -76,6 +78,11 @@ export default function ControllerPage() {
       send={send}
       clearSessionKeys={[wizardKey]}
       onShowCenter={() => setView("center")}
+      onStart={(mode) => {
+        startLocal(mode);
+        setView("center");
+      }}
+      onStop={stopLocal}
     />
   );
 }

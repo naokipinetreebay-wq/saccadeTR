@@ -10,7 +10,7 @@ export type SaccadePlayView = {
   usingPackage: boolean;
 };
 
-/** パッケージがあるときは端末時計で位相を選ぶ */
+/** パッケージがあるときは端末時計で位相を選ぶ。adjust（endsAt=null）は尽きたらループ。 */
 export function resolveSaccadeView(snapshot: RoomSnapshot, now: number): SaccadePlayView {
   const pkg = snapshot.playPackage;
   if (!pkg?.phases.length || !snapshot.config.running) {
@@ -35,14 +35,27 @@ export function resolveSaccadeView(snapshot: RoomSnapshot, now: number): Saccade
       usingPackage: true,
     };
   }
-  let current: PlayPhase = pkg.phases[0];
+
+  const first = pkg.phases[0];
+  const last = pkg.phases[pkg.phases.length - 1];
+  const pkgEnd = last.phaseStartedAt + last.phaseDurationMs;
+  const span = Math.max(1, pkgEnd - first.phaseStartedAt);
+  let t = now;
+  let loopOffset = 0;
+  if (pkg.endsAt == null && now >= pkgEnd) {
+    const elapsed = now - first.phaseStartedAt;
+    loopOffset = Math.floor(elapsed / span) * span;
+    t = first.phaseStartedAt + (elapsed % span);
+  }
+
+  let current: PlayPhase = first;
   for (const p of pkg.phases) {
-    if (p.phaseStartedAt <= now) current = p;
+    if (p.phaseStartedAt <= t) current = p;
     else break;
   }
   return {
     phase: current.phase,
-    phaseStartedAt: current.phaseStartedAt,
+    phaseStartedAt: current.phaseStartedAt + loopOffset,
     phaseDurationMs: current.phaseDurationMs,
     fromAngle: current.fromAngle,
     toAngle: current.toAngle,

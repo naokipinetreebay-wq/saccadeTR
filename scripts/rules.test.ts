@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import { centerPoint, nextBeat, peripheralPoint, pickTarget } from "../src/lib/motion";
+import { centerPoint, nextBeat, peripheralPoint, pickSequential, pickTarget } from "../src/lib/motion";
 import { placementsFor } from "../src/lib/placement";
 import { Room, type ClientSocket } from "../src/server/room";
 import { SPEED_PRESETS, matchPreset } from "../src/lib/types";
@@ -30,6 +30,9 @@ for (let i = 0; i < 40; i++) {
   assert(next !== "b", "do not immediately return to the same phone");
 }
 assert(pickTarget(["only"], "only", () => 0) === "only", "a single phone can repeat");
+assert(pickSequential(["a", "b", "c"], null) === "a", "adjust starts at device1");
+assert(pickSequential(["a", "b", "c"], "a") === "b", "adjust walks in place order");
+assert(pickSequential(["a", "b", "c"], "c") === "a", "adjust wraps around");
 
 const w = 200;
 const h = 400;

@@ -84,3 +84,11 @@ export function pickTarget(ids: string[], previous: string | null, rng: () => nu
   const index = Math.min(choices.length - 1, Math.floor(rng() * choices.length));
   return choices[Math.max(0, index)];
 }
+
+/** 調整モード: place 順（device1 → device2 → …）で外周を一周。 */
+export function pickSequential(ids: string[], previous: string | null): string {
+  if (!ids.length) return "";
+  if (!previous) return ids[0];
+  const idx = ids.indexOf(previous);
+  return ids[(idx < 0 ? 0 : idx + 1) % ids.length];
+}

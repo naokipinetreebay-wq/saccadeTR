@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import { nextBeat, pickTarget, type Bound } from "../lib/motion";
+import { nextBeat, pickSequential, pickTarget, type Bound } from "../lib/motion";
 import { placementsFor } from "../lib/placement";
 import {
   DEFAULT_CONFIG,
@@ -171,6 +171,7 @@ export class Room {
   private liveIds(): string[] {
     return [...this.displays.values()]
       .filter((d) => d.socket && d.socket.readyState === WebSocket.OPEN)
+      .sort((a, b) => a.place - b.place)
       .map((d) => d.id);
   }
 
@@ -200,7 +201,7 @@ export class Room {
     this.finishedAt = null;
     this.bound = "out";
     this.packageIndex = 0;
-    this.playPackage = this.buildPlayPackage(ids, now, this.endsAt);
+    this.playPackage = this.buildPlayPackage(ids, now, this.endsAt, runMode);
     this.touch();
     const first = this.playPackage.phases[0];
     if (!first) {
@@ -235,12 +236,18 @@ export class Room {
     return Math.max(200, Math.round(seconds * 1000));
   }
 
-  private buildPlayPackage(ids: string[], startAt: number, endsAt: number | null): PlayPackage {
+  private buildPlayPackage(
+    ids: string[],
+    startAt: number,
+    endsAt: number | null,
+    runMode: RunMode = "train"
+  ): PlayPackage {
     const phases: PlayPhase[] = [];
     let phase: Phase = "center";
     let bound: Bound = "out";
     let at = startAt;
-    let targetId = pickTarget(ids, null, this.rng);
+    let targetId =
+      runMode === "adjust" ? pickSequential(ids, null) : pickTarget(ids, null, this.rng);
     let toAngle = this.angleOf(targetId);
     let fromAngle = (toAngle + 180) % 360;
     let previous: string | null = null;
@@ -264,7 +271,10 @@ export class Room {
       phase = next.phase;
       if (phase === "center") {
         previous = targetId;
-        targetId = pickTarget(ids, previous, this.rng);
+        targetId =
+          runMode === "adjust"
+            ? pickSequential(ids, previous)
+            : pickTarget(ids, previous, this.rng);
         fromAngle = previous ? this.angleOf(previous) : toAngle;
         toAngle = this.angleOf(targetId);
       }
@@ -300,7 +310,8 @@ export class Room {
       const more = this.buildPlayPackage(
         ids,
         last.phaseStartedAt + last.phaseDurationMs,
-        null
+        null,
+        this.config.mode
       );
       const kept = this.playPackage.phases.slice(-4);
       this.playPackage = { endsAt: null, phases: [...kept, ...more.phases] };

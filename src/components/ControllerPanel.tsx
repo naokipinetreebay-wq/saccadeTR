@@ -25,12 +25,16 @@ export function ControllerPanel({
   send,
   clearSessionKeys,
   onShowCenter,
+  onStart,
+  onStop,
 }: {
   snapshot: RoomSnapshot;
   connected: boolean;
   send: (msg: ClientMessage) => void;
   clearSessionKeys?: string[];
   onShowCenter: () => void;
+  onStart?: (mode: "adjust" | "train") => void;
+  onStop?: () => void;
 }) {
   const cfg = snapshot.config;
   const displayUrl = useMemo(() => {
@@ -98,7 +102,8 @@ export function ControllerPanel({
             className="btn"
             disabled={!canStart}
             onClick={() => {
-              send({ type: "start", mode: "adjust" });
+              if (onStart) onStart("adjust");
+              else send({ type: "start", mode: "adjust", local: true });
               onShowCenter();
             }}
           >
@@ -109,13 +114,18 @@ export function ControllerPanel({
             className="btn primary"
             disabled={!canStart}
             onClick={() => {
-              send({ type: "start", mode: "train" });
+              if (onStart) onStart("train");
+              else send({ type: "start", mode: "train", local: true });
               onShowCenter();
             }}
           >
             {snapshot.finishedAt != null ? "もう一度" : "トレーニング"}
           </button>
-          <button type="button" className="btn danger" onClick={() => send({ type: "stop" })}>
+          <button
+            type="button"
+            className="btn danger"
+            onClick={() => (onStop ? onStop() : send({ type: "stop" }))}
+          >
             停止
           </button>
         </div>
@@ -224,7 +234,10 @@ export function ControllerPanel({
         )}
       </section>
 
-      <SessionExit onStop={() => send({ type: "stop" })} clearSessionKeys={clearSessionKeys} />
+      <SessionExit
+        onStop={() => (onStop ? onStop() : send({ type: "stop" }))}
+        clearSessionKeys={clearSessionKeys}
+      />
     </div>
   );
 }

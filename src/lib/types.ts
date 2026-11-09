@@ -81,12 +81,30 @@ export type ClientMessage =
         hostNow?: number;
       };
     }
+  | {
+      type: "signal";
+      from: string;
+      to: string;
+      payload: unknown;
+    }
   | { type: "ping" };
 
 export type ServerMessage =
   | { type: "snapshot"; snapshot: RoomSnapshot }
   | { type: "error"; message: string }
-  | { type: "pong" };
+  | { type: "pong" }
+  | {
+      type: "signal";
+      from: string;
+      to: string;
+      payload: unknown;
+    }
+  | {
+      type: "clientEvent";
+      event: string;
+      deviceId?: string;
+      [key: string]: unknown;
+    };
 
 export const DEFAULT_CONFIG: RoomConfig = {
   durationSeconds: 20,
